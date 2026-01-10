@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - AUTH_SECRET=secilstore-case-auth-secret-key-12345
+      - AUTH_TRUST_HOST=true
+    restart: unless-stopped
