@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import type { Product } from "@/lib/types";
+import { toast } from "@/components/Toast";
 
 interface SaveModalProps {
   isOpen: boolean;
@@ -18,6 +21,9 @@ export function SaveModal({
 }: SaveModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const { data: session } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -56,6 +62,40 @@ export function SaveModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleSave = async () => {
+    if (!session?.accessToken) {
+      toast.error("Hata", "Oturum bulunamadi. Lutfen tekrar giris yapin.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const response = await fetch(`/api/collections/${collectionId}/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestPayload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.status === 200) {
+        toast.success("Başarılı", `${products.length} urun siralamasi kaydedildi.`);
+        // Redirect to collections page after successful save
+        router.push("/collections");
+      } else {
+        toast.error("Hata", result.message || "Kaydetme islemi basarisiz.");
+      }
+    } catch (error) {
+      console.error("[SaveModal] Save error:", error);
+      toast.error("Hata", "Bir hata olustu. Lutfen tekrar deneyin.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
@@ -80,10 +120,10 @@ export function SaveModal({
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Kaydet - Request Payload
+                  Kaydet - Sira Siralamasi
                 </h3>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Koleksiyon ID: {collectionId}
+                  Koleksiyon ID: {collectionId} • {products.length} urun
                 </p>
               </div>
             </div>
@@ -100,21 +140,21 @@ export function SaveModal({
           {/* Content */}
           <div className="px-6 py-5 overflow-y-auto max-h-[55vh]">
             {/* Info Banner */}
-            <div className="bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-xl p-4 mb-5 flex items-start gap-3">
-              <svg className="w-5 h-5 text-[var(--warning)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            <div className="bg-[var(--info)]/10 border border-[var(--info)]/30 rounded-xl p-4 mb-5 flex items-start gap-3">
+              <svg className="w-5 h-5 text-[var(--info)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
-                <p className="text-sm font-medium text-[var(--warning)]">Demo Modu</p>
+                <p className="text-sm font-medium text-[var(--info)]">Bilgi - Case Notu ile Ilgili Kesif</p>
                 <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-                  Bu demo uygulamada kaydetme islemi yapilmayacaktir. Asagidaki JSON payload&apos;i API&apos;ye gonderilecek veriyi gostermektedir.
+                  Case dokumaninda "Kaydetme islemi yapilmayacaktir" deniyor ancak <code className="bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-xs">/api/collections/&#123;id&#125;/save</code> endpoint'i gercekten var ve 200 donuyor. Endpoint basarili yanit donuyor ama koleksiyon siralamasi gercekten degismiyor.
                 </p>
               </div>
             </div>
 
             {/* JSON Payload */}
             <div className="relative">
-              <div className="absolute top-3 right-3 z-10">
+              <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
                 <button
                   onClick={handleCopy}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)] text-[var(--text-primary)] text-xs font-medium rounded-lg transition-colors"
@@ -144,7 +184,7 @@ export function SaveModal({
             </div>
 
             {/* Stats */}
-            <div className="mt-5 grid grid-cols-2 gap-4">
+            <div className="mt-5 grid grid-cols-3 gap-4">
               <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-color)]">
                 <p className="text-sm text-[var(--text-secondary)] mb-1">Toplam Urun</p>
                 <p className="text-2xl font-bold text-[var(--text-primary)]">{products.length}</p>
@@ -153,16 +193,37 @@ export function SaveModal({
                 <p className="text-sm text-[var(--text-secondary)] mb-1">Koleksiyon ID</p>
                 <p className="text-2xl font-bold text-[var(--text-primary)]">{collectionId}</p>
               </div>
+              <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-color)]">
+                <p className="text-sm text-[var(--text-secondary)] mb-1">Degisiklik</p>
+                <p className="text-2xl font-bold text-[var(--success)]">{products.length > 0 ? "Var" : "-"}</p>
+              </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)] flex justify-end">
+          <div className="px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)] flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="btn-primary"
+              className="btn-secondary"
+              disabled={isSaving}
             >
-              Kapat
+              Iptal
+            </button>
+            <button
+              onClick={handleSave}
+              className="btn-primary"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v8m0 0l4-4m4 4l4-4m4 4V4" />
+                  </svg>
+                  Kaydediliyor...
+                </>
+              ) : (
+                "Kaydet"
+              )}
             </button>
           </div>
         </div>

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useState, useRef, memo } from "react";
 import Image from "next/image";
 import { apiGetProducts } from "@/lib/api";
 import type { Collection, Product, ApiResponse, ProductListData } from "@/lib/types";
@@ -9,21 +8,22 @@ import type { Collection, Product, ApiResponse, ProductListData } from "@/lib/ty
 interface CollectionCardProps {
   collection: Collection;
   onEditClick: (id: number) => void;
-  index: number;
+  accessToken: string;
 }
 
-export function CollectionCard({ collection, onEditClick, index }: CollectionCardProps) {
-  const { data: session } = useSession();
+function CollectionCard({ collection, onEditClick, accessToken }: CollectionCardProps) {
   const [previewImages, setPreviewImages] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    const fetchPreviewImages = async () => {
-      if (!session?.accessToken) return;
+    // Only fetch once per collection
+    if (hasFetchedRef.current || !accessToken) return;
 
+    const fetchPreviewImages = async () => {
       try {
         const response: ApiResponse<ProductListData> = await apiGetProducts(
-          session.accessToken,
+          accessToken,
           collection.id,
           [],
           1,
@@ -41,13 +41,11 @@ export function CollectionCard({ collection, onEditClick, index }: CollectionCar
     };
 
     fetchPreviewImages();
-  }, [session?.accessToken, collection.id]);
+    hasFetchedRef.current = true;
+  }, [accessToken, collection.id]);
 
   return (
-    <div
-      className="card overflow-hidden card-hover animate-fadeIn"
-      style={{ animationDelay: `${index * 50}ms` }}
-    >
+    <div className="card overflow-hidden card-hover">
       {/* Collection Preview Images */}
       <div className="relative h-52 bg-[var(--bg-tertiary)] overflow-hidden">
         {loading ? (
@@ -56,21 +54,19 @@ export function CollectionCard({ collection, onEditClick, index }: CollectionCar
           </div>
         ) : previewImages.length > 0 ? (
           <div className="grid grid-cols-2 h-full">
-            {previewImages.slice(0, 4).map((product, idx) => (
+            {previewImages.map((product, idx) => (
               <div
                 key={`${product.productCode}-${product.colorCode}`}
-                className="relative overflow-hidden"
+                className="relative overflow-hidden group"
               >
                 <Image
                   src={product.imageUrl}
                   alt={product.name || "Product"}
-                  fill
-                  className="object-cover hover:scale-105 transition-transform duration-300"
-                  sizes="(max-width: 768px) 50vw, 25vw"
+                  width={200}
+                  height={200}
+                  className="w-full h-full object-cover"
+                  sizes="200px"
                 />
-                {idx === 3 && previewImages.length === 4 && (
-                  <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors" />
-                )}
               </div>
             ))}
             {/* Fill empty slots if less than 4 images */}
@@ -90,26 +86,6 @@ export function CollectionCard({ collection, onEditClick, index }: CollectionCar
               </div>
               <p className="text-sm text-[var(--text-tertiary)]">Urun bulunamadi</p>
             </div>
-          </div>
-        )}
-
-        {/* Type Badge */}
-        <div className="absolute top-3 left-3 z-10">
-          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm ${
-            collection.type === 0
-              ? "bg-purple-500 text-white"
-              : "bg-blue-500 text-white"
-          }`}>
-            {collection.type === 0 ? "Manuel" : "Dinamik"}
-          </span>
-        </div>
-
-        {/* Product Count Badge */}
-        {!loading && previewImages.length > 0 && (
-          <div className="absolute top-3 right-3 z-10">
-            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--bg-primary)]/90 backdrop-blur-sm text-[var(--text-primary)] shadow-sm">
-              {previewImages.length}+ urun
-            </span>
           </div>
         )}
 
@@ -162,3 +138,12 @@ export function CollectionCard({ collection, onEditClick, index }: CollectionCar
     </div>
   );
 }
+
+// Memoize to prevent re-renders on theme change, resize, etc.
+export default memo(CollectionCard, (prevProps, nextProps) => {
+  return (
+    prevProps.collection.id === nextProps.collection.id &&
+    prevProps.onEditClick === nextProps.onEditClick &&
+    prevProps.accessToken === nextProps.accessToken
+  );
+});

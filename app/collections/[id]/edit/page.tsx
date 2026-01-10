@@ -26,11 +26,11 @@ import { SaveModal } from "@/components/SaveModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from "@/components/Toast";
 import { useCollectionStore } from "@/lib/store";
-import { apiGetProducts, apiGetFilters } from "@/lib/api";
+import { apiGetProducts, apiGetFilters, ApiError } from "@/lib/api";
 import type { ApiResponse, ProductListData, Filter, AdditionalFilter } from "@/lib/types";
 
 export default function CollectionEditPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const params = useParams();
   const collectionId = Number(params.id);
@@ -92,7 +92,16 @@ export default function CollectionEditPage() {
         setProducts(response.data.data, response.data.meta);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Urunler yuklenemedi";
+      let errorMessage = "Urunler yuklenemedi";
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          errorMessage = "Oturum suresi doldu. Sayfayi yenileyin.";
+        } else {
+          errorMessage = `API Hatası: ${error.status} ${error.statusText}`;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       setProductsError(errorMessage);
       toast.error("Hata", errorMessage);
     } finally {
@@ -199,45 +208,49 @@ export default function CollectionEditPage() {
 
       <div className="bg-[var(--bg-primary)] border-b border-[var(--border-color)] sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2 text-sm">
-              <Link href="/collections" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+          <div className="flex items-center justify-between h-16 gap-2">
+            <div className="flex items-center gap-1.5 text-sm min-w-0">
+              <Link href="/collections" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap">
                 Koleksiyonlar
               </Link>
-              <svg className="w-4 h-4 text-[var(--text-tertiary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-[var(--text-tertiary) flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              <span className="text-[var(--text-primary)] font-medium">Sabitleri Duzenle</span>
+              <span className="text-[var(--text-primary)] font-medium truncate hidden sm:inline-block">Sabitleri Duzenle</span>
               {hasChanges && (
-                <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-xs font-medium rounded-full flex-shrink-0">
                   Degisiklikler var
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setShowMobileFilters(true)}
-                className="lg:hidden flex items-center gap-2 px-4 py-2 text-sm font-medium text-[var(--text-secondary)] bg-[var(--bg-tertiary)] rounded-lg hover:bg-[var(--border-color)] transition-colors"
+                className="lg:hidden p-2 text-[var(--text-secondary)] bg-[var(--bg-tertiary)] rounded-lg hover:bg-[var(--border-color)] transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                Filtreler
                 {activeFilters.length > 0 && (
-                  <span className="w-5 h-5 bg-[var(--accent-primary)] text-[var(--bg-primary)] text-xs rounded-full flex items-center justify-center">
+                  <span className="ml-1 w-5 h-5 bg-[var(--accent-primary)] text-[var(--bg-primary)] text-xs rounded-full flex items-center justify-center">
                     {activeFilters.length}
                   </span>
                 )}
               </button>
 
-              <button onClick={handleCancel} className="btn-secondary">
-                Vazgec
+              <button onClick={handleCancel} className="btn-secondary px-3 py-2 text-sm sm:px-4">
+                <span className="hidden sm:inline">Vazgec</span>
+                <span className="sm:hidden">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </span>
               </button>
               <button
                 onClick={handleSave}
                 disabled={!hasChanges}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="btn-primary px-3 py-2 text-sm sm:px-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Kaydet
               </button>

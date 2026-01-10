@@ -1,20 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useState, useCallback } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/Header";
-import { CollectionCard } from "@/components/CollectionCard";
-import { CollectionListItem } from "@/components/CollectionListItem";
+import CollectionCard from "@/components/CollectionCard";
+import CollectionListItem from "@/components/CollectionListItem";
 import { useCollectionStore } from "@/lib/store";
-import { apiGetCollections } from "@/lib/api";
+import { apiGetCollections, ApiError } from "@/lib/api";
 import type { CollectionListResponse } from "@/lib/types";
 
 export default function CollectionsPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+
+  // Redirect to login if session has refresh error
+  useEffect(() => {
+    if (status === "authenticated" && session?.error === "RefreshAccessTokenError") {
+      signOut({ callbackUrl: "/login" });
+    }
+  }, [session?.error, status]);
 
   const {
     collections,
@@ -40,9 +47,13 @@ export default function CollectionsPage() {
         );
         setCollections(response.data, response.meta);
       } catch (error) {
-        setCollectionsError(
-          error instanceof Error ? error.message : "Koleksiyonlar yuklenemedi"
-        );
+        if (error instanceof ApiError && error.status === 401) {
+          setCollectionsError("Oturum suresi doldu. Sayfayi yenileyin.");
+        } else {
+          setCollectionsError(
+            error instanceof Error ? error.message : "Koleksiyonlar yuklenemedi"
+          );
+        }
       } finally {
         setCollectionsLoading(false);
       }
@@ -51,13 +62,13 @@ export default function CollectionsPage() {
     fetchCollections();
   }, [session?.accessToken, currentPage, setCollections, setCollectionsLoading, setCollectionsError]);
 
-  const handleEditClick = (collectionId: number) => {
+  const handleEditClick = useCallback((collectionId: number) => {
     router.push(`/collections/${collectionId}/edit`);
-  };
+  }, [router]);
 
-  const handlePageChange = (page: number) => {
+  const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[var(--bg-secondary)]">
@@ -121,12 +132,12 @@ export default function CollectionsPage() {
           <>
             {viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {collections.map((collection, index) => (
+                {collections.map((collection) => (
                   <CollectionCard
                     key={collection.id}
                     collection={collection}
                     onEditClick={handleEditClick}
-                    index={index}
+                    accessToken={session?.accessToken || ""}
                   />
                 ))}
               </div>
@@ -139,9 +150,6 @@ export default function CollectionsPage() {
                         Koleksiyon
                       </th>
                       <th className="px-6 py-4 text-left text-sm font-medium text-[var(--text-secondary)] hidden md:table-cell">
-                        Tip
-                      </th>
-                      <th className="px-6 py-4 text-left text-sm font-medium text-[var(--text-secondary)] hidden lg:table-cell">
                         Filtreler
                       </th>
                       <th className="px-6 py-4 text-right text-sm font-medium text-[var(--text-secondary)]">
@@ -155,6 +163,7 @@ export default function CollectionsPage() {
                         key={collection.id}
                         collection={collection}
                         onEditClick={handleEditClick}
+                        accessToken={session?.accessToken || ""}
                       />
                     ))}
                   </tbody>

@@ -1,5 +1,13 @@
 # Collection Management Platform
 
+> **[TR] KEŞİF** Save endpoint için dummy endpoint yerine `/api/collections/{id}/save` kullanıldı. Bu endpoint aslında var gibi çalışıyor ve 200 döndürüyor. JSON payload modal'da gösteriliyor.
+>
+> **[EN] DISCOVERY** Used `/api/collections/{id}/save` for save action instead of dummy endpoint. This endpoint actually works and returns 200. JSON payload is displayed in modal.
+>
+> **[TR] UYARI** Token refresh endpoint'i (`/Auth/RefreshTokenLogin`) geçersiz JWT gönderildiğinde 500 hatası döndürüyor. 401 döndürmesi gerekiyor.
+>
+> **[EN] WARNING** Token refresh endpoint (`/Auth/RefreshTokenLogin`) returns 500 error instead of 401 when invalid JWT is sent.
+
 A modern collection management platform demonstrating proficiency in React/Next.js ecosystem, state management, authentication flows, and modern UI/UX practices.
 
 ## Tech Stack
@@ -91,7 +99,7 @@ docker-compose up --build
 
 **Drag & Drop**: Uses `@dnd-kit` with 8px activation distance to prevent accidental drags. Supports keyboard navigation and touch devices.
 
-**Token Refresh**: JWT auto-refreshes 60 seconds before expiry. On failure, user is redirected to login.
+**Token Refresh**: JWT auto-refreshes 5 minutes before expiry. Access tokens expire in 8 hours, refresh tokens in 10 hours. Session checks every 10 minutes.
 
 **State Management**: Zustand store tracks original vs reordered products to detect unsaved changes. Warning shown on navigation with pending changes.
 

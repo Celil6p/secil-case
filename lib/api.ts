@@ -11,6 +11,17 @@ export const apiEndpoints = {
     `${API_BASE_URL}/Collection/${collectionId}/GetFiltersForConstants`,
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public statusText: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function apiLogin(username: string, password: string) {
   const response = await fetch(apiEndpoints.login, {
     method: "POST",
@@ -22,7 +33,7 @@ export async function apiLogin(username: string, password: string) {
   });
 
   if (!response.ok) {
-    throw new Error("Login failed");
+    throw new ApiError("Login failed", response.status, response.statusText);
   }
 
   return response.json();
@@ -38,11 +49,14 @@ export async function apiRefreshToken(refreshToken: string) {
     body: JSON.stringify({ refreshToken }),
   });
 
-  if (!response.ok) {
-    throw new Error("Token refresh failed");
+  const data = await response.json();
+
+  // Backend returns 200 OK with status: 500 for invalid tokens (buggy API)
+  if (data.status === 500 || (data.status !== 0 && data.message)) {
+    throw new ApiError(data.message || "Token refresh failed", 500, "Internal Server Error");
   }
 
-  return response.json();
+  return data;
 }
 
 export async function apiGetCollections(accessToken: string, page = 1, pageSize = 10) {
@@ -55,7 +69,7 @@ export async function apiGetCollections(accessToken: string, page = 1, pageSize 
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch collections");
+    throw new ApiError("Failed to fetch collections", response.status, response.statusText);
   }
 
   return response.json();
@@ -78,7 +92,7 @@ export async function apiGetProducts(
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch products");
+    throw new ApiError("Failed to fetch products", response.status, response.statusText);
   }
 
   return response.json();
@@ -94,7 +108,7 @@ export async function apiGetFilters(accessToken: string, collectionId: number) {
   });
 
   if (!response.ok) {
-    throw new Error("Failed to fetch filters");
+    throw new ApiError("Failed to fetch filters", response.status, response.statusText);
   }
 
   return response.json();

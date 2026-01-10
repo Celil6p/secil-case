@@ -14,6 +14,7 @@ declare module "next-auth" {
   interface Session {
     accessToken: string;
     refreshToken: string;
+    expiresAt: number;
     error?: string;
     user: {
       email: string;
@@ -32,6 +33,21 @@ declare module "@auth/core/jwt" {
     error?: string;
   }
 }
+
+// Helper to decode JWT and get expiry
+function getTokenExpiry(accessToken: string): number {
+  try {
+    const payload = JSON.parse(
+      Buffer.from(accessToken.split(".")[1], "base64").toString()
+    );
+    return payload.exp * 1000; // Convert to milliseconds
+  } catch {
+    return 0;
+  }
+}
+
+// Refresh token if it expires in less than 5 minutes
+const REFRESH_THRESHOLD = 5 * 60 * 1000; // 5 minutes in ms
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -53,7 +69,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           );
 
           if (response.status === 0 && response.data) {
-            // Decode JWT to get user info
             const tokenPayload = JSON.parse(
               Buffer.from(response.data.accessToken.split(".")[1], "base64").toString()
             );
@@ -77,51 +92,72 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      // Initial sign in
+      // Initial sign in - store all data
       if (user) {
-        token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
-        token.expiresAt = Date.now() + user.expiresIn * 1000;
-        token.email = user.email;
-        token.name = user.name;
-        return token;
+        return {
+          accessToken: user.accessToken,
+          refreshToken: user.refreshToken,
+          expiresAt: Date.now() + user.expiresIn * 1000,
+          email: user.email,
+          name: user.name,
+        };
       }
-
-      // Return previous token if it hasn't expired yet (with 60 second buffer)
-      if (Date.now() < token.expiresAt - 60 * 1000) {
-        return token;
-      }
-
-      // Token has expired, try to refresh it
-      try {
-        const response = await apiRefreshToken(token.refreshToken);
-
-        if (response.status === 0 && response.data) {
-          return {
-            ...token,
-            accessToken: response.data.accessToken,
-            refreshToken: response.data.refreshToken,
-            expiresAt: Date.now() + response.data.expiresIn * 1000,
-          };
-        }
-
-        // Failed to refresh - return token as expired
-        return { ...token, error: "RefreshAccessTokenError" };
-      } catch {
-        // Refresh failed - return token as expired
-        return { ...token, error: "RefreshAccessTokenError" };
-      }
+      // Return existing token - refresh happens in session callback
+      return token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken;
-      session.refreshToken = token.refreshToken;
+      const now = Date.now();
+      let currentToken = token.accessToken;
+      let currentRefreshToken = token.refreshToken;
+      let expiresAt = token.expiresAt;
+
+      // Check if API access token needs refresh
+      // (expired or expiring within threshold)
+      if (expiresAt - now < REFRESH_THRESHOLD) {
+        console.log("[Auth] Token expired, attempting refresh...");
+
+        try {
+          const response = await apiRefreshToken(currentRefreshToken);
+
+          if (response.status === 0 && response.data) {
+            // Refresh successful
+            console.log("[Auth] Token refresh successful");
+            currentToken = response.data.accessToken;
+            currentRefreshToken = response.data.refreshToken;
+            expiresAt = Date.now() + response.data.expiresIn * 1000;
+
+            // Update the JWT token for next time
+            token.accessToken = currentToken;
+            token.refreshToken = currentRefreshToken;
+            token.expiresAt = expiresAt;
+          } else {
+            // Refresh failed - API returned error
+            console.log("[Auth] Token refresh failed:", response);
+            return {
+              ...session,
+              error: "RefreshAccessTokenError",
+              accessToken: "",
+              expiresAt: 0,
+            };
+          }
+        } catch (error: any) {
+          // Refresh failed - exception
+          console.log("[Auth] Token refresh exception:", error?.message || error);
+          return {
+            ...session,
+            error: "RefreshAccessTokenError",
+            accessToken: "",
+            expiresAt: 0,
+          };
+        }
+      }
+
+      // Return valid session with current tokens
+      session.accessToken = currentToken;
+      session.refreshToken = currentRefreshToken;
+      session.expiresAt = expiresAt;
       session.user.email = token.email;
       session.user.name = token.name;
-
-      // Pass through error if token refresh failed
-      if (token.error) {
-        session.error = token.error;
-      }
 
       return session;
     },
@@ -131,5 +167,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 });

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useState, useRef, memo } from "react";
 import Image from "next/image";
 import { apiGetProducts } from "@/lib/api";
 import type { Collection, Product, ApiResponse, ProductListData } from "@/lib/types";
@@ -9,20 +8,22 @@ import type { Collection, Product, ApiResponse, ProductListData } from "@/lib/ty
 interface CollectionListItemProps {
   collection: Collection;
   onEditClick: (id: number) => void;
+  accessToken: string;
 }
 
-export function CollectionListItem({ collection, onEditClick }: CollectionListItemProps) {
-  const { data: session } = useSession();
+function CollectionListItem({ collection, onEditClick, accessToken }: CollectionListItemProps) {
   const [previewImage, setPreviewImage] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    const fetchPreviewImage = async () => {
-      if (!session?.accessToken) return;
+    // Only fetch once per collection
+    if (hasFetchedRef.current || !accessToken) return;
 
+    const fetchPreviewImage = async () => {
       try {
         const response: ApiResponse<ProductListData> = await apiGetProducts(
-          session.accessToken,
+          accessToken,
           collection.id,
           [],
           1,
@@ -40,7 +41,8 @@ export function CollectionListItem({ collection, onEditClick }: CollectionListIt
     };
 
     fetchPreviewImage();
-  }, [session?.accessToken, collection.id]);
+    hasFetchedRef.current = true;
+  }, [accessToken, collection.id]);
 
   return (
     <tr className="hover:bg-[var(--bg-secondary)] transition-colors">
@@ -55,8 +57,9 @@ export function CollectionListItem({ collection, onEditClick }: CollectionListIt
               <Image
                 src={previewImage.imageUrl}
                 alt={collection.info.name}
-                fill
-                className="object-cover"
+                width={56}
+                height={56}
+                className="w-full h-full object-cover"
                 sizes="56px"
               />
             ) : (
@@ -74,15 +77,6 @@ export function CollectionListItem({ collection, onEditClick }: CollectionListIt
         </div>
       </td>
       <td className="px-6 py-4 hidden md:table-cell">
-        <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-          collection.type === 0
-            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
-            : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-        }`}>
-          {collection.type === 0 ? "Manuel" : "Dinamik"}
-        </span>
-      </td>
-      <td className="px-6 py-4 hidden lg:table-cell">
         <div className="flex flex-wrap gap-1">
           {collection.filters.filters?.slice(0, 3).map((filter, idx) => (
             <span key={idx} className="px-2 py-0.5 bg-[var(--bg-tertiary)] rounded text-xs text-[var(--text-secondary)]">
@@ -110,3 +104,12 @@ export function CollectionListItem({ collection, onEditClick }: CollectionListIt
     </tr>
   );
 }
+
+// Memoize to prevent re-renders on theme change, resize, etc.
+export default memo(CollectionListItem, (prevProps, nextProps) => {
+  return (
+    prevProps.collection.id === nextProps.collection.id &&
+    prevProps.onEditClick === nextProps.onEditClick &&
+    prevProps.accessToken === nextProps.accessToken
+  );
+});

@@ -15,19 +15,19 @@ export function Header({ title = "Koleksiyon", subtitle = "Koleksiyon Listesi" }
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
-    <header className="h-16 bg-[var(--bg-primary)] border-b border-[var(--border-color)] flex items-center justify-between px-6 relative z-40">
-      
-      <div>
-        <h1 className="text-lg font-semibold text-[var(--text-primary)]">{title}</h1>
-        <p className="text-sm text-[var(--text-secondary)]">{subtitle}</p>
+    <header className="h-16 bg-[var(--bg-primary)] border-b border-[var(--border-color)] flex items-center justify-between px-4 sm:px-6 relative z-40">
+
+      <div className="min-w-0 flex-1">
+        <h1 className="text-base sm:text-lg font-semibold text-[var(--text-primary)] truncate">{title}</h1>
+        <p className="text-xs sm:text-sm text-[var(--text-secondary)] truncate hidden sm:block">{subtitle}</p>
       </div>
 
-      
-      <div className="flex items-center gap-3">
-        
+
+      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 ml-2">
+
         <button
           onClick={toggleTheme}
-          className="p-2.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)] transition-colors"
+          className="p-2 sm:p-2.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--border-color)] transition-colors"
           title={theme === "light" ? "Koyu temaya gec" : "Acik temaya gec"}
         >
           {theme === "light" ? (
@@ -41,24 +41,24 @@ export function Header({ title = "Koleksiyon", subtitle = "Koleksiyon Listesi" }
           )}
         </button>
 
-        
+
         <div className="relative">
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+            className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
           >
-            <div className="w-8 h-8 rounded-full bg-[var(--info)] flex items-center justify-center text-white font-medium text-sm">
+            <div className="w-8 h-8 rounded-full bg-[var(--info)] flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
               {session?.user?.name?.charAt(0).toUpperCase() || "U"}
             </div>
-            <div className="hidden sm:block text-left">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
+            <div className="hidden sm:block text-left min-w-0">
+              <p className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[120px]">
                 {session?.user?.name || "Kullanici"}
               </p>
-              <p className="text-xs text-[var(--text-tertiary)]">
+              <p className="text-xs text-[var(--text-tertiary)] truncate max-w-[120px]">
                 {session?.user?.email || ""}
               </p>
             </div>
-            <svg className="w-4 h-4 text-[var(--text-tertiary)] hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-[var(--text-tertiary)] hidden sm:block flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -71,10 +71,10 @@ export function Header({ title = "Koleksiyon", subtitle = "Koleksiyon Listesi" }
               />
               <div className="absolute right-0 mt-2 w-56 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 py-2 animate-fadeIn">
                 <div className="px-4 py-3 border-b border-[var(--border-color)]">
-                  <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
                     {session?.user?.name}
                   </p>
-                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+                  <p className="text-xs text-[var(--text-tertiary)] mt-0.5 truncate">
                     {session?.user?.email}
                   </p>
                 </div>
