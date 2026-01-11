@@ -9,6 +9,8 @@ A modern collection management platform demonstrating proficiency in React/Next.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind](https://img.shields.io/badge/Tailwind-3-38bdf8?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 
+🌐 **Live Demo:** [secil.celilaltiparmak.com](https://secil.celilaltiparmak.com) (hosted on Raspberry Pi home server)
+
 </div>
 
 ---
@@ -34,6 +36,7 @@ A modern collection management platform demonstrating proficiency in React/Next.
 |----|----|
 | Save endpoint için dummy endpoint yerine `/api/collections/{id}/save` kullanıldı. Bu endpoint aslında var gibi çalışıyor ve 200 döndürüyor. JSON payload modal'da gösteriliyor. **Fakat asıl veri güncellenmiyor.** | Used `/api/collections/{id}/save` for save action instead of dummy endpoint. This endpoint works and returns 200. JSON payload is displayed in modal. **However, the actual data is not updated.** |
 | Token refresh endpoint'i (`/Auth/RefreshTokenLogin`) geçersiz JWT gönderildiğinde **500 hatası** döndürüyor. **401** döndürmesi gerekiyor. | Token refresh endpoint (`/Auth/RefreshTokenLogin`) returns **500 error** instead of **401** when invalid JWT is sent. |
+| **Live Demo CORS:** Backend API'ye erişim için CORS ayarları gerekiyor. Case receiver test etmek istiyorsa backend'e `secil.celilaltiparmak.com` için CORS rule eklemeli. | **Live Demo CORS:** Backend API requires CORS configuration. To test the live demo, case receiver needs to add CORS rule for `secil.celilaltiparmak.com` on the backend. |
 
 ---
 
