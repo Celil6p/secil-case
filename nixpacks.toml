@@ -1,0 +1,11 @@
+[phases.build]
+cmds = ["bun run build"]
+
+[phases.start]
+cmds = ["node server.js"]
+
+[build.env]
+NPM_CONFIG_PRODUCTION = "false"
+
+[build.variables]
+NODE_VERSION = "20"
