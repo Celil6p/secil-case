@@ -4,13 +4,18 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Product } from "@/lib/types";
 import Image from "next/image";
+import { Tooltip } from "@/components/Tooltip";
 
 interface SortableProductProps {
   product: Product;
   index: number;
+  globalOrder: number;  // The global position across all pages (1-based)
+  displayOrder?: number; // Optional: show different order if product was reordered
 }
 
-export function SortableProduct({ product, index }: SortableProductProps) {
+export function SortableProduct({ product, index, globalOrder, displayOrder }: SortableProductProps) {
+  const orderToShow = displayOrder ?? globalOrder;
+  const hasOrderChange = displayOrder !== undefined && displayOrder !== globalOrder;
   const {
     attributes,
     listeners,
@@ -51,11 +56,19 @@ export function SortableProduct({ product, index }: SortableProductProps) {
           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
         />
 
-        
-        <div className="absolute top-3 left-3">
-          <div className="w-8 h-8 rounded-full bg-[var(--bg-primary)]/95 backdrop-blur-sm shadow-sm flex items-center justify-center">
-            <span className="text-sm font-bold text-[var(--text-primary)]">#{index + 1}</span>
-          </div>
+        {/* Order badge - shows global order, highlights if changed */}
+        <div className="absolute top-3 left-3 pointer-events-auto z-10">
+          {hasOrderChange ? (
+            <Tooltip content={`Original pozisyon <strong class="text-sm">${globalOrder}</strong>`}>
+              <div className="min-w-8 h-8 px-2 rounded-full bg-amber-500 backdrop-blur-sm shadow-sm flex items-center justify-center">
+                <span className="text-sm font-bold text-white">#{orderToShow}</span>
+              </div>
+            </Tooltip>
+          ) : (
+            <div className="min-w-8 h-8 px-2 rounded-full bg-[var(--bg-primary)]/95 backdrop-blur-sm shadow-sm flex items-center justify-center">
+              <span className="text-sm font-bold text-[var(--text-primary)]">#{orderToShow}</span>
+            </div>
+          )}
         </div>
 
         

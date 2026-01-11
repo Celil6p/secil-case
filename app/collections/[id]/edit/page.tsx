@@ -27,7 +27,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { toast } from "@/components/Toast";
 import { useCollectionStore } from "@/lib/store";
 import { apiGetProducts, apiGetFilters, ApiError } from "@/lib/api";
-import type { ApiResponse, ProductListData, Filter, AdditionalFilter } from "@/lib/types";
+import { addNavigationWarning } from "@/lib/navigation";
+import type { ApiResponse, ProductListData, Filter, AdditionalFilter, OrderChange } from "@/lib/types";
 
 export default function CollectionEditPage() {
   const { data: session, status } = useSession();
@@ -37,7 +38,6 @@ export default function CollectionEditPage() {
 
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const {
@@ -49,6 +49,12 @@ export default function CollectionEditPage() {
     filters,
     filtersLoading,
     activeFilters,
+    currentPage,
+    pageSize,
+    orderChanges,
+    originalOrderMap,
+    originalOrderLoading,
+    totalProducts,
     setProducts,
     setProductsLoading,
     setProductsError,
@@ -59,9 +65,15 @@ export default function CollectionEditPage() {
     addActiveFilter,
     removeActiveFilter,
     clearActiveFilters,
+    updateOrderChanges,
+    removeOrderChanges,
+    clearOrderChanges,
+    setCurrentPage,
+    hasOrderChanges,
+    setOriginalOrderMap,
+    setOriginalOrderLoading,
   } = useCollectionStore();
 
-  // 8px distance prevents accidental drags when clicking
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -85,7 +97,7 @@ export default function CollectionEditPage() {
         collectionId,
         activeFilters,
         currentPage,
-        36
+        pageSize
       );
 
       if (response.status === 200 && response.data) {
@@ -107,7 +119,7 @@ export default function CollectionEditPage() {
     } finally {
       setProductsLoading(false);
     }
-  }, [session?.accessToken, collectionId, activeFilters, currentPage, setProducts, setProductsLoading, setProductsError]);
+  }, [session?.accessToken, collectionId, activeFilters, currentPage, pageSize, setProducts, setProductsLoading, setProductsError]);
 
   const fetchFilters = useCallback(async () => {
     if (!session?.accessToken) return;
@@ -130,7 +142,66 @@ export default function CollectionEditPage() {
     }
   }, [session?.accessToken, collectionId, setFilters, setFiltersLoading]);
 
-  // Force logout when refresh token fails
+  const fetchOriginalOrderMap = useCallback(async () => {
+    if (!session?.accessToken) return;
+    if (Object.keys(originalOrderMap).length > 0) return; // Already fetched
+
+    setOriginalOrderLoading(true);
+
+    try {
+      const firstResponse: ApiResponse<ProductListData> = await apiGetProducts(
+        session.accessToken,
+        collectionId,
+        [], // No filters
+        1,
+        pageSize
+      );
+
+      if (firstResponse.status !== 200 || !firstResponse.data) {
+        console.error("Failed to fetch original order");
+        return;
+      }
+
+      const totalProduct = firstResponse.data.meta.totalProduct;
+      const totalPages = Math.ceil(totalProduct / pageSize);
+      const orderMap: Record<string, number> = {};
+      firstResponse.data.data.forEach((product, index) => {
+        const key = `${product.productCode}-${product.colorCode}`;
+        orderMap[key] = index + 1;
+      });
+
+      if (totalPages > 1) {
+        const pageNumbers = Array.from({ length: totalPages - 1 }, (_, i) => i + 2);
+
+        for (let i = 0; i < pageNumbers.length; i += 3) {
+          const batch = pageNumbers.slice(i, i + 3);
+          const responses: ApiResponse<ProductListData>[] = await Promise.all(
+            batch.map((page) =>
+              apiGetProducts(session.accessToken, collectionId, [], page, pageSize)
+            )
+          );
+
+          responses.forEach((response: ApiResponse<ProductListData>, batchIndex: number) => {
+            if (response.status === 200 && response.data) {
+              const pageNum = batch[batchIndex];
+              const offset = (pageNum - 1) * pageSize;
+              response.data.data.forEach((product: { productCode: string; colorCode: string }, index: number) => {
+                const key = `${product.productCode}-${product.colorCode}`;
+                orderMap[key] = offset + index + 1;
+              });
+            }
+          });
+        }
+      }
+
+      setOriginalOrderMap(orderMap, totalProduct);
+    } catch (error) {
+      console.error("Failed to fetch original order map:", error);
+    } finally {
+      setOriginalOrderLoading(false);
+    }
+  }, [session?.accessToken, collectionId, pageSize, originalOrderMap, setOriginalOrderMap, setOriginalOrderLoading]);
+
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
       toast.error("Oturum Suresi Doldu", "Lutfen tekrar giris yapin.");
@@ -143,8 +214,45 @@ export default function CollectionEditPage() {
   }, [fetchFilters]);
 
   useEffect(() => {
+    fetchOriginalOrderMap();
+  }, [fetchOriginalOrderMap]);
+
+  useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  useEffect(() => {
+    if (products.length === 0 || Object.keys(originalOrderMap).length === 0) return;
+
+    const currentOrderChanges = useCollectionStore.getState().orderChanges;
+    if (Object.keys(currentOrderChanges).length === 0) return;
+
+    const productsWithOrder = products.map((p) => {
+      const key = `${p.productCode}-${p.colorCode}`;
+      const originalOrder = originalOrderMap[key] ?? 0;
+      const change = currentOrderChanges[key];
+      const effectiveOrder = change ? change.newOrder : originalOrder;
+      return { product: p, effectiveOrder, key };
+    });
+
+    productsWithOrder.sort((a, b) => a.effectiveOrder - b.effectiveOrder);
+    const originalKeys = products.map((p) => `${p.productCode}-${p.colorCode}`).join(',');
+    const sortedKeys = productsWithOrder.map((item) => item.key).join(',');
+
+    if (originalKeys !== sortedKeys) {
+      const sortedProducts = productsWithOrder.map((item) => item.product);
+      useCollectionStore.getState().setReorderedProducts(sortedProducts);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, originalOrderMap]);
+
+  useEffect(() => {
+    const cleanup = addNavigationWarning(() => {
+      const currentChanges = useCollectionStore.getState().orderChanges;
+      return Object.keys(currentChanges).length > 0;
+    });
+    return cleanup;
+  }, []);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -157,7 +265,47 @@ export default function CollectionEditPage() {
         (p) => `${p.productCode}-${p.colorCode}` === over.id
       );
 
-      setReorderedProducts(arrayMove(reorderedProducts, oldIndex, newIndex));
+      const newReorderedProducts = arrayMove(reorderedProducts, oldIndex, newIndex);
+      setReorderedProducts(newReorderedProducts);
+
+      const slots = products.map((p) => {
+        const key = `${p.productCode}-${p.colorCode}`;
+        return originalOrderMap[key] ?? 0;
+      });
+
+      const minIndex = Math.min(oldIndex, newIndex);
+      const maxIndex = Math.max(oldIndex, newIndex);
+
+      const changes: OrderChange[] = [];
+      const keysToRemove: string[] = [];
+      for (let i = minIndex; i <= maxIndex; i++) {
+        const product = newReorderedProducts[i];
+        const key = `${product.productCode}-${product.colorCode}`;
+        const productOriginalOrder = originalOrderMap[key] ?? 0;
+        const newOrder = slots[i]; // The slot this product now occupies
+
+        if (productOriginalOrder > 0 && newOrder > 0) {
+          if (productOriginalOrder === newOrder) {
+            // Product is back to its original position - remove from changes
+            keysToRemove.push(key);
+          } else {
+            // Product has moved to a new position
+            changes.push({
+              productCode: product.productCode,
+              colorCode: product.colorCode,
+              originalOrder: productOriginalOrder,
+              newOrder: newOrder,
+            });
+          }
+        }
+      }
+
+      if (changes.length > 0) {
+        updateOrderChanges(changes);
+      }
+      if (keysToRemove.length > 0) {
+        removeOrderChanges(keysToRemove);
+      }
     }
   };
 
@@ -190,6 +338,7 @@ export default function CollectionEditPage() {
 
   const handleConfirmCancel = () => {
     resetReorderedProducts();
+    clearOrderChanges();
     clearActiveFilters();
     toast.info("Iptal Edildi", "Degisiklikler kaydedilmedi.");
     router.push("/collections");
@@ -199,7 +348,7 @@ export default function CollectionEditPage() {
     setCurrentPage(page);
   };
 
-  const hasChanges =
+  const hasChanges = hasOrderChanges() ||
     JSON.stringify(products) !== JSON.stringify(reorderedProducts);
 
   return (
@@ -330,13 +479,22 @@ export default function CollectionEditPage() {
                     strategy={rectSortingStrategy}
                   >
                     <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {reorderedProducts.map((product, index) => (
-                        <SortableProduct
-                          key={`${product.productCode}-${product.colorCode}`}
-                          product={product}
-                          index={index}
-                        />
-                      ))}
+                      {reorderedProducts.map((product, index) => {
+                        const key = `${product.productCode}-${product.colorCode}`;
+                        const originalOrder = originalOrderMap[key] ?? ((currentPage - 1) * pageSize + index + 1);
+                        const orderChange = orderChanges[key];
+                        const displayOrder = orderChange?.newOrder;
+
+                        return (
+                          <SortableProduct
+                            key={key}
+                            product={product}
+                            index={index}
+                            globalOrder={originalOrder}
+                            displayOrder={displayOrder}
+                          />
+                        );
+                      })}
                     </div>
                   </SortableContext>
                 </DndContext>

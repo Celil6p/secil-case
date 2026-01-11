@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import type { Product } from "@/lib/types";
+import type { Product, OrderChange } from "@/lib/types";
+import { useCollectionStore } from "@/lib/store";
 import { toast } from "@/components/Toast";
 
 interface SaveModalProps {
@@ -19,6 +20,7 @@ export function SaveModal({
   collectionId,
   products,
 }: SaveModalProps) {
+  const { orderChanges, clearOrderChanges } = useCollectionStore();
   const modalRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,14 +47,22 @@ export function SaveModal({
 
   if (!isOpen) return null;
 
+  const allOrderChanges = Object.values(orderChanges);
+
+  const productsWithChanges = allOrderChanges.map((change) => ({
+    productCode: change.productCode,
+    colorCode: change.colorCode,
+    position: change.newOrder,
+  }));
+
+  productsWithChanges.sort((a, b) => a.position - b.position);
+
   const requestPayload = {
     collectionId,
-    products: products.map((p, index) => ({
-      productCode: p.productCode,
-      colorCode: p.colorCode,
-      position: index + 1,
-    })),
+    products: productsWithChanges,
   };
+
+  const totalChanges = allOrderChanges.length;
 
   const payloadString = JSON.stringify(requestPayload, null, 2);
 
@@ -82,7 +92,9 @@ export function SaveModal({
       const result = await response.json();
 
       if (response.ok && result.status === 200) {
-        toast.success("Başarılı", `${products.length} urun siralamasi kaydedildi.`);
+        toast.success("Başarılı", `${totalChanges} urun siralamasi kaydedildi.`);
+        // Clear order changes after successful save
+        clearOrderChanges();
         // Redirect to collections page after successful save
         router.push("/collections");
       } else {
@@ -123,7 +135,7 @@ export function SaveModal({
                   Kaydet - Sira Siralamasi
                 </h3>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Koleksiyon ID: {collectionId} • {products.length} urun
+                  Koleksiyon ID: {collectionId} • {totalChanges} degisiklik
                 </p>
               </div>
             </div>
@@ -184,18 +196,14 @@ export function SaveModal({
             </div>
 
             {/* Stats */}
-            <div className="mt-5 grid grid-cols-3 gap-4">
+            <div className="mt-5 grid grid-cols-2 gap-4">
               <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-color)]">
-                <p className="text-sm text-[var(--text-secondary)] mb-1">Toplam Urun</p>
-                <p className="text-2xl font-bold text-[var(--text-primary)]">{products.length}</p>
+                <p className="text-sm text-[var(--text-secondary)] mb-1">Degisen Urun</p>
+                <p className="text-2xl font-bold text-[var(--accent-primary)]">{totalChanges}</p>
               </div>
               <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-color)]">
                 <p className="text-sm text-[var(--text-secondary)] mb-1">Koleksiyon ID</p>
                 <p className="text-2xl font-bold text-[var(--text-primary)]">{collectionId}</p>
-              </div>
-              <div className="bg-[var(--bg-secondary)] rounded-xl p-4 border border-[var(--border-color)]">
-                <p className="text-sm text-[var(--text-secondary)] mb-1">Degisiklik</p>
-                <p className="text-2xl font-bold text-[var(--success)]">{products.length > 0 ? "Var" : "-"}</p>
               </div>
             </div>
           </div>

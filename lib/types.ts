@@ -110,3 +110,16 @@ export interface GetProductsRequest {
   page: number;
   pageSize: number;
 }
+
+// Order change tracking for pagination support
+export interface OrderChange {
+  productCode: string;
+  colorCode: string;
+  originalOrder: number;
+  newOrder: number;
+}
+
+export interface ProductWithOrder extends Product {
+  globalOrder: number;  // The global position across all pages
+  displayOrder: number; // The order to display (may differ if reordered)
+}

@@ -46,14 +46,14 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         
         <div className="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg p-8 shadow-sm">
-          
+
           <div className="text-center mb-12">
             <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]" style={{ fontFamily: 'system-ui' }}>
-              <span style={{ letterSpacing: '-0.05em' }}>LOGO</span>
+              <span style={{ letterSpacing: '-0.05em' }}>SECİL</span>
             </h1>
           </div>
 
-          
+
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-[var(--error)] px-4 py-3 rounded-lg text-sm">
