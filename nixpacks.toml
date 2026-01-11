@@ -1,11 +1,8 @@
-[phases.install]
-cmds = ["bun install"]
-
 [phases.build]
-cmds = ["bun run build"]
+cmds = ["npm run build"]
 
 [phases.start]
-cmds = ["bun run start"]
+cmds = ["npm run start"]
 
 [variables]
 NODE_VERSION = "20"
