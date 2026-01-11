@@ -99,7 +99,7 @@ docker-compose.yml            # Container setup
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ or Bun
+- Node.js 20+ or Bun
 - Docker (optional)
 
 ### Local Development
